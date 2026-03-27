@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html>
+<head><title>WebRTC Test</title></head>
+<body>
+<h2>WebRTC Realtime API Test</h2>
+<button id="start">Start Call</button>
+<pre id="log" style="background:#111;color:#0f0;padding:16px;height:500px;overflow:auto;font-size:13px;"></pre>
+<script>
+const SCENARIO_ID = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
+const log = document.getElementById('log');
+function addLog(msg) {
+  log.textContent += new Date().toISOString().substr(11,12) + ' ' + msg + '\n';
+  log.scrollTop = log.scrollHeight;
+}
+
+document.getElementById('start').onclick = async () => {
+  addLog('Fetching fresh ephemeral token...');
+  const tokenRes = await fetch('/api/sessions/ephemeral-token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ scenario_id: SCENARIO_ID })
+  });
+  const tokenData = await tokenRes.json();
+  if (!tokenRes.ok) {
+    addLog('Token fetch FAILED: ' + JSON.stringify(tokenData));
+    return;
+  }
+  const TOKEN = tokenData.token;
+  addLog('Got token: ' + TOKEN.substring(0, 20) + '...');
+
+  addLog('Requesting mic...');
+  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  addLog('Mic OK. Creating peer connection...');
+
+  const pc = new RTCPeerConnection();
+  const audioEl = document.createElement('audio');
+  audioEl.autoplay = true;
+  document.body.appendChild(audioEl);
+
+  pc.ontrack = (e) => {
+    addLog('ontrack - got remote audio stream');
+    audioEl.srcObject = e.streams[0];
+    audioEl.play().catch(err => addLog('play error: ' + err));
+  };
+
+  stream.getTracks().forEach(t => pc.addTrack(t, stream));
+
+  const dc = pc.createDataChannel('oai-events');
+
+  dc.onopen = () => addLog('Data channel OPEN');
+
+  dc.onmessage = (e) => {
+    const evt = JSON.parse(e.data);
+    if (!evt.type.includes('.delta')) {
+      addLog('EVENT: ' + evt.type);
+    }
+
+    if (evt.type === 'session.created') {
+      addLog('>>> Session created! Sending response.create...');
+      dc.send(JSON.stringify({ type: 'response.create' }));
+    }
+    if (evt.type === 'response.audio_transcript.done') {
+      addLog('>>> AI SAID: ' + (evt.transcript || '').substring(0, 300));
+    }
+    if (evt.type === 'response.done') {
+      addLog('>>> RESPONSE DONE');
+    }
+    if (evt.type === 'error') {
+      addLog('>>> ERROR: ' + JSON.stringify(evt.error));
+    }
+    if (evt.type === 'conversation.item.input_audio_transcription.completed') {
+      addLog('>>> USER SAID: ' + (evt.transcript || ''));
+    }
+    if (evt.type === 'input_audio_buffer.speech_started') {
+      addLog('>>> VAD: user speech started');
+    }
+    if (evt.type === 'input_audio_buffer.speech_stopped') {
+      addLog('>>> VAD: user speech stopped');
+    }
+    if (evt.type === 'response.function_call_arguments.done') {
+      addLog('>>> FUNCTION CALL: ' + evt.name + ' args=' + (evt.arguments || '').substring(0, 150));
+      dc.send(JSON.stringify({
+        type: 'conversation.item.create',
+        item: { type: 'function_call_output', call_id: evt.call_id, output: '{"ok":true}' }
+      }));
+      addLog('>>> Sent function output (no response.create)');
+    }
+  };
+
+  dc.onerror = (e) => addLog('DC error: ' + e);
+  pc.oniceconnectionstatechange = () => addLog('ICE: ' + pc.iceConnectionState);
+  pc.onconnectionstatechange = () => addLog('Conn: ' + pc.connectionState);
+
+  addLog('Creating SDP offer...');
+  const offer = await pc.createOffer();
+  await pc.setLocalDescription(offer);
+  addLog('Sending SDP to OpenAI...');
+
+  const resp = await fetch('https://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview', {
+    method: 'POST',
+    headers: { 'Authorization': 'Bearer ' + TOKEN, 'Content-Type': 'application/sdp' },
+    body: offer.sdp
+  });
+
+  if (!resp.ok) {
+    addLog('SDP FAILED: ' + resp.status + ' ' + await resp.text());
+    return;
+  }
+
+  const answer = await resp.text();
+  addLog('Got SDP answer (' + answer.length + ' chars). Setting remote desc...');
+  await pc.setRemoteDescription({ type: 'answer', sdp: answer });
+  addLog('Done. Waiting for events...');
+};
+</script>
+</body>
+</html>

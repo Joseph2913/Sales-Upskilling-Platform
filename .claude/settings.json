@@ -1,0 +1,16 @@
+{
+  "autoMemoryEnabled": true,
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if echo \"$TOOL_OUTPUT\" | grep -qi 'error\\|failed\\|FAIL'; then echo '[LEARNING TRIGGER] A command produced errors — consider logging this to GOTCHAS.md if it reveals a recurring issue or non-obvious fix.'; fi"
+          }
+        ]
+      }
+    ]
+  }
+}
