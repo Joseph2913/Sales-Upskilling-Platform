@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Mic, MicOff, PhoneOff, Volume2, VolumeX } from 'lucide-react';
+import { Mic, MicOff, PhoneOff, Volume2, VolumeX, Lightbulb } from 'lucide-react';
 import type { TranscriptTurn } from '../../../types/voiceSimulation';
 import { colors, fonts } from '../../../constants/designTokens';
 
@@ -9,7 +9,7 @@ interface LiveCallScreenProps {
   transcript: TranscriptTurn[];
   /** Live AI text as it streams in — displayed as a growing bubble. */
   aiInterimText: string;
-  /** Live user text from Web Speech API — displayed as a growing bubble. */
+  /** Live user text from Gemini transcription — displayed as a growing bubble. */
   userInterimText: string;
   isAiSpeaking: boolean;
   isMuted: boolean;
@@ -19,6 +19,12 @@ interface LiveCallScreenProps {
   onEndCall: () => void;
   isEnding: boolean;
   callStartTime: number;
+  /** Coaching whisper hint (null = no hint active) */
+  coachingHint?: string | null;
+  /** Whether coaching whisper is enabled */
+  coachingEnabled?: boolean;
+  /** Toggle coaching whisper on/off */
+  onToggleCoaching?: () => void;
 }
 
 /**
@@ -39,6 +45,9 @@ export function LiveCallScreen({
   onEndCall,
   isEnding,
   callStartTime,
+  coachingHint,
+  coachingEnabled,
+  onToggleCoaching,
 }: LiveCallScreenProps) {
   const [elapsed, setElapsed] = useState(0);
   const transcriptEndRef = useRef<HTMLDivElement>(null);
@@ -111,23 +120,27 @@ export function LiveCallScreen({
 
       {/* ─── Transcript Panel (FR12-14) ─── */}
       <div style={transcriptPanelStyle}>
-        {transcript.map((turn, i) => (
-          <div
-            key={i}
-            style={{
-              display: 'flex',
-              justifyContent: turn.speaker === 'user' ? 'flex-end' : 'flex-start',
-              marginBottom: 12,
-            }}
-          >
-            <div style={turn.speaker === 'user' ? userBubbleStyle : customerBubbleStyle}>
-              <span style={speakerLabelStyle}>
-                {turn.speaker === 'user' ? 'You' : firstName}
-              </span>
-              <p style={bubbleTextStyle}>{turn.text}</p>
+        {transcript.map((turn, i) => {
+          const isUser = turn.speaker === 'user';
+          const displayName = isUser ? 'You' : (turn.speaker_name || firstName);
+          return (
+            <div
+              key={i}
+              style={{
+                display: 'flex',
+                justifyContent: isUser ? 'flex-end' : 'flex-start',
+                marginBottom: 12,
+              }}
+            >
+              <div style={isUser ? userBubbleStyle : customerBubbleStyle}>
+                <span style={speakerLabelStyle}>
+                  {displayName}
+                </span>
+                <p style={bubbleTextStyle}>{turn.text}</p>
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
 
         {/* Live user interim transcript (Web Speech API) */}
         {userInterimText && (
@@ -170,11 +183,46 @@ export function LiveCallScreen({
           </div>
         ) : null}
 
+        {/* Coaching hint overlay */}
+        {coachingHint && (
+          <div style={{
+            margin: '8px 24px 12px',
+            padding: '10px 16px',
+            background: 'rgba(56, 178, 172, 0.15)',
+            border: '1px solid rgba(56, 178, 172, 0.3)',
+            borderRadius: 10,
+            display: 'flex', alignItems: 'center', gap: 10,
+            animation: 'fadeSlideUp 0.3s ease-out',
+          }}>
+            <Lightbulb size={14} color="#38B2AC" style={{ flexShrink: 0 }} />
+            <span style={{
+              fontFamily: fonts.body, fontSize: 12, fontWeight: 500,
+              color: 'rgba(255,255,255,0.9)', fontStyle: 'italic',
+            }}>
+              {coachingHint}
+            </span>
+          </div>
+        )}
+
         <div ref={transcriptEndRef} />
       </div>
 
-      {/* ─── Bottom Controls (FR15, AC24) — exactly 3 buttons ─── */}
+      {/* ─── Bottom Controls ─── */}
       <div style={bottomBarStyle}>
+        {/* Coaching toggle */}
+        {onToggleCoaching && (
+          <button
+            onClick={onToggleCoaching}
+            style={{
+              ...controlButtonStyle,
+              background: coachingEnabled ? 'rgba(56, 178, 172, 0.3)' : 'rgba(255,255,255,0.1)',
+            }}
+            title={coachingEnabled ? 'Disable coaching hints' : 'Enable coaching hints'}
+          >
+            <Lightbulb size={20} color={coachingEnabled ? '#38B2AC' : colors.white} />
+          </button>
+        )}
+
         <button onClick={onToggleMute} style={controlButtonStyle} title={isMuted ? 'Unmute' : 'Mute'}>
           {isMuted ? <MicOff size={22} color={colors.error} /> : <Mic size={22} color={colors.white} />}
         </button>
@@ -196,9 +244,12 @@ export function LiveCallScreen({
 const containerStyle: React.CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
-  height: '100vh',
+  height: 'calc(100vh - 140px)',
+  minHeight: 500,
   background: '#0F1117',
   color: colors.white,
+  borderRadius: 16,
+  overflow: 'hidden',
 };
 
 const topBarStyle: React.CSSProperties = {

@@ -4,7 +4,7 @@
 This platform is specifically designed for **pharmaceutical and life sciences sales professionals**. All learning content, simulations, scenarios, and AI personas must reflect pharma sales contexts: HCP engagement, formulary processes, P&T committees, clinical evidence-based selling, HEOR value articulation, and post-sale adoption in healthcare settings. Never use generic B2B or technology sales examples unless explicitly connecting them to pharma.
 
 ## Stack
-React 19 + TypeScript 5.8 + Vite 6 + React Router v7 + Supabase (PostgreSQL + Auth + Storage) + Google Gemini API. Inline styles throughout — no CSS modules, no Tailwind, no styled-components. Voice simulation backend: Express + SQLite (local dev) with OpenAI Realtime API via WebRTC.
+React 19 + TypeScript 5.8 + Vite 6 + React Router v7 + Supabase (PostgreSQL + Auth + Storage) + Google Gemini API. Inline styles throughout — no CSS modules, no Tailwind, no styled-components. Voice simulation backend: Express + SQLite (local dev) with Gemini 3.1 Flash Live API via server-side WebSocket relay.
 
 ## Commands
 - `npm run dev` — start dev server
@@ -26,7 +26,9 @@ Six sales objectives (personalised via onboarding survey). Each objective has th
 See @docs/CONTENT_STRUCTURE.md for the full curriculum mapping.
 
 ## Voice Simulation (Format B)
-OpenAI Realtime API via WebRTC for live voice conversations with AI customer personas. Backend (Express + SQLite in `server/`) mints ephemeral tokens and stores sessions. System prompts assembled server-side — never exposed to frontend. Start backend with `cd server && npx tsx src/index.ts`. Vite proxies `/api` to `localhost:3001`.
+Gemini 3.1 Flash Live API via server-side WebSocket relay for live voice conversations with AI customer personas. Backend (Express + SQLite in `server/`) relays audio between browser and Gemini, assembles system prompts server-side — never exposed to frontend. Framework-based: adding a new scenario requires only a database row and a `scenarioId` in `learningObjectives.ts`. Start backend with `cd server && npx tsx src/index.ts`. Vite proxies `/api` and `/ws` to `localhost:3001`.
+
+See @docs/VOICE_SIMULATION.md for full framework specification, scenario schema, and content rules.
 
 ## Design
 DM Sans for headings/nav/labels (400-800). Plus Jakarta Sans for body/buttons (400-700). Teal (#38B2AC) primary, navy (#1A202C) sidebar/headings. Each objective has an accent/accentDark/accentLight triplet. All card borders: 1px solid #E2E8F0.

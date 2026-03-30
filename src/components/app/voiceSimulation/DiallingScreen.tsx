@@ -99,8 +99,9 @@ const containerStyle: React.CSSProperties = {
   flexDirection: 'column',
   alignItems: 'center',
   justifyContent: 'center',
-  minHeight: '100vh',
+  minHeight: 500,
   background: '#1A1A2E',
+  borderRadius: 16,
 };
 
 const avatarContainerStyle: React.CSSProperties = {

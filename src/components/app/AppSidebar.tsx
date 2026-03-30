@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
+  LayoutDashboard,
   Map,
   Target,
   Swords,
   MessageSquare,
-  Wrench,
   Folder,
   Users,
 } from 'lucide-react';
@@ -18,11 +18,11 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
+  { label: 'Dashboard', path: '/app/dashboard', icon: <LayoutDashboard size={20} strokeWidth={1.5} /> },
   { label: 'My Journey', path: '/app/journey', icon: <Map size={20} strokeWidth={1.5} /> },
   { label: 'Current Objective', path: '/app/objective', icon: <Target size={20} strokeWidth={1.5} /> },
   { label: 'Practice Arena', path: '/app/practice-arena', icon: <Swords size={20} strokeWidth={1.5} /> },
   { label: 'My Sales Coach', path: '/app/sales-coach', icon: <MessageSquare size={20} strokeWidth={1.5} /> },
-  { label: 'My Toolkit', path: '/app/toolkit', icon: <Wrench size={20} strokeWidth={1.5} /> },
   { label: 'My Artefacts', path: '/app/artefacts', icon: <Folder size={20} strokeWidth={1.5} /> },
   { label: 'My Cohort', path: '/app/cohort', icon: <Users size={20} strokeWidth={1.5} /> },
 ];

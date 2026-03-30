@@ -218,7 +218,7 @@ export const LEARNING_OBJECTIVES: LearningObjective[] = [
     },
     estimatedMinutes: 75,
     icon: '🤝',
-    scenarioId: null,
+    scenarioId: 'b2c3d4e5-f6a7-8901-bcde-f23456789012',
     formats: [
       {
         format: 'A', label: 'Decision Simulation', icon: '🎯',
@@ -282,7 +282,7 @@ export const LEARNING_OBJECTIVES: LearningObjective[] = [
     },
     estimatedMinutes: 85,
     icon: '🗺️',
-    scenarioId: null,
+    scenarioId: 'c3d4e5f6-a7b8-9012-cdef-345678901234',
     formats: [
       {
         format: 'A', label: 'Decision Simulation', icon: '🎯',
@@ -346,7 +346,7 @@ export const LEARNING_OBJECTIVES: LearningObjective[] = [
     },
     estimatedMinutes: 80,
     icon: '💎',
-    scenarioId: null,
+    scenarioId: 'd4e5f6a7-b8c9-0123-defa-456789012345',
     formats: [
       {
         format: 'A', label: 'Decision Simulation', icon: '🎯',
@@ -410,7 +410,7 @@ export const LEARNING_OBJECTIVES: LearningObjective[] = [
     },
     estimatedMinutes: 85,
     icon: '🛡️',
-    scenarioId: null,
+    scenarioId: 'e5f6a7b8-c9d0-1234-efab-567890123456',
     formats: [
       {
         format: 'A', label: 'Decision Simulation', icon: '🎯',
@@ -474,7 +474,7 @@ export const LEARNING_OBJECTIVES: LearningObjective[] = [
     },
     estimatedMinutes: 80,
     icon: '📈',
-    scenarioId: null,
+    scenarioId: 'f6a7b8c9-d0e1-2345-fabc-678901234567',
     formats: [
       {
         format: 'A', label: 'Decision Simulation', icon: '🎯',

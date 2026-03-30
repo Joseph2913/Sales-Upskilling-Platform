@@ -1,7 +1,8 @@
 import { Router } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { getDb } from './db.js';
-import { assembleSystemPrompt, getConversationStateFunctionDef } from './prompt.js';
+import { assembleSystemPrompt, getGeminiConversationStateFunctionDef } from './prompt.js';
+import { storePendingSession } from './geminiLive.js';
 
 const router = Router();
 
@@ -51,11 +52,11 @@ router.post('/api/sessions', (req, res) => {
   res.json({ session_id: sessionId, created_at: now });
 });
 
-// ─── POST /api/sessions/ephemeral-token ─────────────────────────────
-// Assembles system prompt server-side, creates an OpenAI Realtime session,
-// and returns only the ephemeral token. The system prompt never leaves
-// the backend (FR21-24, AC25).
-router.post('/api/sessions/ephemeral-token', async (req, res) => {
+// ─── POST /api/sessions/voice-config ────────────────────────────────
+// Assembles system prompt server-side, stores it in memory keyed by
+// session ID, and returns a WebSocket URL. The system prompt never
+// leaves the backend (FR21-24, AC25).
+router.post('/api/sessions/voice-config', (req, res) => {
   const { scenario_id } = req.body;
   if (!scenario_id) {
     res.status(400).json({ success: false, error: { code: 'INVALID_INPUT', message: 'scenario_id is required' } });
@@ -78,75 +79,42 @@ router.post('/api/sessions/ephemeral-token', async (req, res) => {
     return;
   }
 
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
-    res.status(500).json({ success: false, error: { code: 'CONFIG_ERROR', message: 'OpenAI API key not configured' } });
+  if (!process.env.GEMINI_API_KEY) {
+    res.status(500).json({ success: false, error: { code: 'CONFIG_ERROR', message: 'Gemini API key not configured' } });
     return;
   }
 
   // Assemble the full system prompt server-side
   const systemPrompt = assembleSystemPrompt(scenario);
-  const functionDef = getConversationStateFunctionDef();
+  const functionDef = getGeminiConversationStateFunctionDef();
 
-  // Log prompt size for debugging (FR35: should not exceed ~4000 tokens)
+  // Log prompt size for debugging
   console.log(`System prompt assembled: ${systemPrompt.length} chars (~${Math.ceil(systemPrompt.length / 4)} tokens)`);
 
-  try {
-    // Create a Realtime API session via OpenAI REST endpoint
-    const response = await fetch('https://api.openai.com/v1/realtime/sessions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o-realtime-preview',
-        voice: 'sage',
-        instructions: systemPrompt,
-        input_audio_transcription: { model: 'whisper-1' },
-        turn_detection: {
-          type: 'server_vad',
-          threshold: 0.7,           // Higher = needs more confident speech to trigger (default ~0.5)
-          silence_duration_ms: 1200, // Wait 1.2s of silence before concluding the user is done
-          prefix_padding_ms: 500,    // Include 500ms of audio before speech detection
-        },
-        temperature: 0.85,
-        tools: [functionDef],
-      }),
-    });
+  // Create session record
+  const sessionId = uuidv4();
+  const now = new Date().toISOString();
 
-    if (!response.ok) {
-      const errorBody = await response.text();
-      console.error('OpenAI Realtime session creation failed:', response.status, errorBody);
-      res.status(502).json({
-        success: false,
-        error: { code: 'AI_TIMEOUT', message: 'Failed to create voice session. Please try again.' }
-      });
-      return;
-    }
+  db.prepare(`
+    INSERT INTO sessions (id, scenario_id, started_at, created_at)
+    VALUES (?, ?, ?, ?)
+  `).run(sessionId, scenario_id, now, now);
 
-    const data = await response.json() as { client_secret?: { value: string; expires_at: number } };
+  // Store the assembled config in memory for the WebSocket handler to consume
+  storePendingSession({
+    sessionId,
+    systemPrompt,
+    tools: [functionDef],
+    voiceId: 'Aoede', // Default Gemini HD voice — will be per-scenario in Phase 5
+    createdAt: Date.now(),
+  });
 
-    if (!data.client_secret) {
-      console.error('Unexpected response structure from OpenAI:', data);
-      res.status(502).json({
-        success: false,
-        error: { code: 'AI_TIMEOUT', message: 'Unexpected response from voice service.' }
-      });
-      return;
-    }
+  // Return the session ID and WebSocket URL for the browser to connect to
+  const protocol = req.protocol === 'https' ? 'wss' : 'ws';
+  const host = req.get('host') || 'localhost:3001';
+  const wsUrl = `${protocol}://${host}/ws/voice?session_id=${sessionId}`;
 
-    res.json({
-      token: data.client_secret.value,
-      expires_at: new Date(data.client_secret.expires_at * 1000).toISOString(),
-    });
-  } catch (err) {
-    console.error('Error creating ephemeral token:', err);
-    res.status(500).json({
-      success: false,
-      error: { code: 'AI_TIMEOUT', message: 'Failed to create voice session. Please try again.' }
-    });
-  }
+  res.json({ session_id: sessionId, ws_url: wsUrl });
 });
 
 // ─── POST /api/sessions/:sessionId/state ────────────────────────────
@@ -227,6 +195,75 @@ router.get('/api/sessions/:sessionId', (req, res) => {
   session.final_state = session.final_state ? JSON.parse(session.final_state as string) : null;
 
   res.json(session);
+});
+
+// ─── POST /api/sessions/:sessionId/coaching-hint ────────────────────
+// Returns a coaching hint based on recent transcript + conversation state.
+// Calls Gemini text API (not Live). Rate-limited: one call per 15 seconds.
+const coachingCooldowns = new Map<string, number>();
+
+router.post('/api/sessions/:sessionId/coaching-hint', async (req, res) => {
+  const { sessionId } = req.params;
+  const { recent_transcript, conversation_state } = req.body;
+
+  // Rate limit: 15 seconds per session
+  const lastCall = coachingCooldowns.get(sessionId) || 0;
+  if (Date.now() - lastCall < 15000) {
+    res.json({ hint: null });
+    return;
+  }
+  coachingCooldowns.set(sessionId, Date.now());
+
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    res.json({ hint: null });
+    return;
+  }
+
+  try {
+    const { COACHING_SYSTEM_PROMPT } = await import('./coachingPrompt.js');
+
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: COACHING_SYSTEM_PROMPT }] },
+          contents: [{
+            parts: [{
+              text: `Recent transcript (last few turns):\n${JSON.stringify(recent_transcript, null, 2)}\n\nCurrent conversation state:\n${JSON.stringify(conversation_state, null, 2)}\n\nProvide a coaching hint or null.`,
+            }],
+          }],
+          generationConfig: {
+            temperature: 0.3,
+            maxOutputTokens: 100,
+            responseMimeType: 'application/json',
+          },
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      res.json({ hint: null });
+      return;
+    }
+
+    const data = await response.json() as {
+      candidates?: { content?: { parts?: { text?: string }[] } }[];
+    };
+
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!text) {
+      res.json({ hint: null });
+      return;
+    }
+
+    const parsed = JSON.parse(text) as { hint: string | null };
+    res.json({ hint: parsed.hint || null });
+  } catch {
+    res.json({ hint: null });
+  }
 });
 
 export default router;

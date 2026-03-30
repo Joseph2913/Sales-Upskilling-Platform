@@ -30,9 +30,13 @@ export async function createSession(scenarioId: string): Promise<{ session_id: s
   });
 }
 
-/** Get an ephemeral token for the OpenAI Realtime API WebRTC connection. */
-export async function getEphemeralToken(scenarioId: string): Promise<{ token: string; expires_at: string }> {
-  return apiFetch('/sessions/ephemeral-token', {
+/**
+ * Get voice config for a Gemini Live session.
+ * Creates a session server-side, assembles the system prompt,
+ * and returns a WebSocket URL for the browser to connect to.
+ */
+export async function getVoiceConfig(scenarioId: string): Promise<{ session_id: string; ws_url: string }> {
+  return apiFetch('/sessions/voice-config', {
     method: 'POST',
     body: JSON.stringify({ scenario_id: scenarioId }),
   });

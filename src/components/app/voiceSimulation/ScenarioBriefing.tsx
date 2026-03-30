@@ -86,9 +86,8 @@ const containerStyle: React.CSSProperties = {
   flexDirection: 'column',
   alignItems: 'center',
   justifyContent: 'center',
-  minHeight: '100vh',
-  background: colors.bg,
-  padding: 40,
+  minHeight: 500,
+  padding: '40px 0',
 };
 
 const cardStyle: React.CSSProperties = {

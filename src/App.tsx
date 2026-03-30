@@ -13,7 +13,6 @@ import { colors, fonts } from './constants/designTokens';
 // Lazy-loaded App pages
 const DashboardPage = lazy(() => import('./pages/app/DashboardPage'));
 const JourneyPage = lazy(() => import('./pages/app/JourneyPage'));
-const ObjectivePage = lazy(() => import('./pages/app/ObjectivePage'));
 const DecisionSimulationPlayer = lazy(() => import('./pages/app/DecisionSimulationPlayer'));
 const AIConversationPlayer = lazy(() => import('./pages/app/AIConversationPlayer'));
 const BuildApplyPage = lazy(() => import('./pages/app/BuildApplyPage'));
@@ -24,8 +23,6 @@ const ArtefactsPage = lazy(() => import('./pages/app/ArtefactsPage'));
 const CohortPage = lazy(() => import('./pages/app/CohortPage'));
 const OrgAdminPage = lazy(() => import('./pages/app/OrgAdminPage'));
 const JoinPage = lazy(() => import('./pages/app/JoinPage'));
-const VoiceSimulationPage = lazy(() => import('./pages/app/VoiceSimulationPage'));
-
 // Lazy-loaded Admin pages
 const AdminDashboardPage = lazy(() => import('./pages/admin/AdminDashboardPage'));
 const OrgsListPage = lazy(() => import('./pages/admin/OrgsListPage'));
@@ -104,7 +101,6 @@ export function App() {
               <Route index element={<Navigate to="/app/dashboard" replace />} />
               <Route path="dashboard" element={<DashboardPage />} />
               <Route path="journey" element={<JourneyPage />} />
-              <Route path="objective/:id" element={<ObjectivePage />} />
               <Route path="objective/:id/format-a" element={<DecisionSimulationPlayer />} />
               <Route path="objective/:id/format-b" element={<AIConversationPlayer />} />
               <Route path="objective/:id/format-c" element={<BuildApplyPage />} />
@@ -115,12 +111,6 @@ export function App() {
               <Route path="cohort" element={<CohortPage />} />
               <Route path="admin" element={<OrgAdminPage />} />
             </Route>
-
-            {/* Voice Simulation — standalone full-screen experience */}
-            <Route
-              path="/app/voice-simulation/:scenarioId"
-              element={<VoiceSimulationPage />}
-            />
 
             {/* Public invite link */}
             <Route path="/join/:slug" element={<PublicJoinPage />} />

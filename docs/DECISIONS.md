@@ -46,3 +46,20 @@ Non-trivial decisions made during development, with rationale. Helps future sess
 **Options Considered:** Firebase, Supabase, custom backend (Node + PostgreSQL), AWS Amplify.
 **Decision:** Supabase — PostgreSQL with RLS, built-in Auth, Edge Functions for AI endpoints, Storage for file uploads, Realtime for leaderboard subscriptions.
 **Consequences:** PostgreSQL gives full SQL power (complex queries, joins, migrations). RLS handles multi-tenancy at the database level. Edge Functions run Deno (not Node) — need to account for Deno-specific patterns. Vendor lock-in is manageable since core is open-source PostgreSQL.
+
+---
+
+### Voice Simulation: OpenAI Realtime → Gemini 3.1 Flash Live
+**Date:** 2026-03-30
+**Context:** Voice simulation (Format B) used OpenAI Realtime API via WebRTC (gpt-4o-realtime-preview). Needed cost reduction at scale, emotional intelligence capabilities, multi-persona support with distinct voices, and alignment with the platform's existing Gemini usage for all other AI features.
+**Options Considered:** Stay with OpenAI Realtime API, migrate to Gemini 3.1 Flash Live, hybrid (Gemini for new scenarios, OpenAI for existing).
+**Decision:** Full migration to Gemini 3.1 Flash Live via server-side WebSocket relay. Browser connects to server via WebSocket; server relays to Gemini. Custom protocol abstraction layer between browser and server decouples frontend from Gemini's raw protocol.
+**Consequences:** ~12x cost reduction ($0.46 vs $6 per 20-min session). Affective dialog enables emotional intelligence scoring. 30 HD voices enable distinct personas per scenario. Server-side relay adds one network hop (minimal latency impact). WebSocket audio requires explicit PCM encode/decode (vs WebRTC's transparent audio transport). Web Speech API eliminated — Gemini provides built-in dual transcription. Framework approach: all scenarios run through the same pipeline; adding new scenarios requires only database content.
+
+---
+
+### Voice Simulation: Framework-Based Architecture
+**Date:** 2026-03-30
+**Context:** Platform has 6 learning objectives, each needing its own voice simulation scenario. Building per-objective custom code would not scale.
+**Decision:** Framework architecture where components, hooks, and server pipeline are scenario-agnostic. Scenario-specific content lives entirely in the database (persona, hidden brief, response rules, voice ID). Adding a new objective's voice simulation requires one DB insert and one `scenarioId` reference.
+**Consequences:** Consistent learner experience across all objectives. Content authors can create scenarios without touching code. Conversation state tracking (trust, signals, gates, emotions) is universal. Features like adaptive difficulty and strategic silence are configured per-scenario in response rules JSON, not in code.
